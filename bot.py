@@ -1,7 +1,7 @@
-import telebot
+import os
+TOKEN = os.getenv("8741499484:AAHfMRmDg9D3a5F-RKjiBw_UGMKW1NQLZ6U")
+CHANNEL_ID = int(os.getenv("-1003860495120"))
 
-TOKEN = "8741499484:AAHfMRmDg9D3a5F-RKjiBw_UGMKW1NQLZ6U"
-CHANNEL_ID = -1001234567890  # сюда вставь ID канала
 
 bot = telebot.TeleBot(TOKEN)
 
