@@ -1,68 +1,74 @@
-
 import os
-import telebot   # обязательно
+import telebot
+from telebot import types
+
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
-
 
 bot = telebot.TeleBot(TOKEN)
 
 user_data = {}
 
-# Теги
-TAGS = ["молодежка", "гости", "внецеркви", "вечерхвалы"]
-# =========================
-# 3. Функции для работы с ботом
-# =========================
+# Кнопки для тегов
+TAGS = ["Молодежка", "Вне церкви", "Гости", "Вечер хвалы"]
 
-# Обработка фото
+# ----------------- обработка фото -----------------
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     user_id = message.from_user.id
-    # Сохраняем все фото в сообщении
+    # сохраняем только самое большое фото из каждого массива
     user_data[user_id] = {
-        "photos": message.photo
+        "photos": [message.photo[-1]]  # берем самое большое фото
     }
     bot.send_message(user_id, "Введите название мероприятия:")
     bot.register_next_step_handler(message, ask_date)
 
-# Ввод названия мероприятия
+# ----------------- название мероприятия -----------------
 def ask_date(message):
     user_id = message.from_user.id
     user_data[user_id]["event_name"] = message.text
     bot.send_message(user_id, "Введите дату мероприятия (например: 19.03.2026):")
     bot.register_next_step_handler(message, ask_tags)
 
-# Ввод тегов
+# ----------------- кнопки тегов -----------------
 def ask_tags(message):
     user_id = message.from_user.id
     user_data[user_id]["date"] = message.text
-    # Отправляем инструкцию с тегами
-    bot.send_message(user_id, "Выберите один или несколько тегов через запятую:\n\n"
-                              "- Молодежка — фото с собраний молодежной группы\n"
-                              "- Вне церкви — мероприятия вне церкви\n"
-                              "- Гости — приглашенные или посетители\n"
-                              "- Вечер хвалы — музыкальные или молитвенные вечера")
-    bot.register_next_step_handler(message, send_photos)
+    
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    buttons = [types.InlineKeyboardButton(tag, callback_data=tag) for tag in TAGS]
+    markup.add(*buttons)
+    
+    bot.send_message(user_id, "Выберите один или несколько тегов (нажмите кнопки):", reply_markup=markup)
 
-# Отправка фото в канал
-def send_photos(message):
-    user_id = message.from_user.id
-    tags = [tag.strip() for tag in message.text.split(",")]
-    user_data[user_id]["tags"] = tags
+# ----------------- обработка выбора тегов -----------------
+@bot.callback_query_handler(func=lambda call: True)
+def callback_tags(call):
+    user_id = call.from_user.id
+    tag = call.data
+    if "tags" not in user_data[user_id]:
+        user_data[user_id]["tags"] = []
+    if tag not in user_data[user_id]["tags"]:
+        user_data[user_id]["tags"].append(tag)
     
-    # Формируем подпись для фото
-    caption = f"{user_data[user_id]['event_name']} | {user_data[user_id]['date']} | Теги: {', '.join(tags)}"
+    # Кнопка для завершения выбора
+    markup = types.InlineKeyboardMarkup()
+    finish_button = types.InlineKeyboardButton("Готово ✅", callback_data="finish")
+    markup.add(finish_button)
     
-    # Отправляем каждое фото в канал
+    bot.edit_message_text(chat_id=user_id, message_id=call.message.message_id,
+                          text=f"Выбранные теги: {', '.join(user_data[user_id]['tags'])}", reply_markup=markup)
+    
+    if call.data == "finish":
+        send_photos(user_id)
+
+# ----------------- отправка фото в канал -----------------
+def send_photos(user_id):
+    caption = f"{user_data[user_id]['event_name']} | {user_data[user_id]['date']} | Теги: {', '.join(user_data[user_id]['tags'])}"
     for photo in user_data[user_id]["photos"]:
         bot.send_photo(CHANNEL_ID, photo.file_id, caption=caption)
-    
     bot.send_message(user_id, "Фото успешно загружены в канал ✅")
-    # Очищаем данные пользователя
     user_data.pop(user_id)
 
-# =========================
-# 4. Запуск бота
-# =========================
+# ----------------- запуск -----------------
 bot.polling()
