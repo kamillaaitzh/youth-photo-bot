@@ -1,5 +1,6 @@
-import os
 
+import os
+import telebot   # обязательно
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
 
