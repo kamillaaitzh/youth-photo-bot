@@ -96,9 +96,13 @@ def callback_tags(call):
 # 5. Отправка фото в канал
 # ---------------------------
 def send_photos(user_id):
+    # Превращаем каждый тег в #Тег
     hashtags = ' '.join([f"#{tag.replace(' ', '')}" for tag in user_data[user_id].get('tags', [])])
-caption = f"{user_data[user_id]['event_name']} | {user_data[user_id]['date']} | {hashtags}"
+    
+    # Формируем подпись для альбома
+    caption = f"{user_data[user_id]['event_name']} | {user_data[user_id]['date']} | {hashtags}"
 
+    # Отправляем все группы фото (альбомы)
     for group_id, photos in user_data[user_id]["photo_groups"].items():
         media = []
         for i, photo in enumerate(photos):
