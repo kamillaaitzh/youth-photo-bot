@@ -10,7 +10,7 @@ bot = telebot.TeleBot(TOKEN)
 user_data = {}
 
 # Теги
-TAGS = ["молодежка", "гости", "вне церкви", "вечер хвалы"]
+TAGS = ["молодежка", "гости", "внецеркви", "вечерхвалы"]
 
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
