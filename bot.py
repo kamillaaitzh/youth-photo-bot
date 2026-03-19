@@ -11,70 +11,58 @@ user_data = {}
 
 # Теги
 TAGS = ["молодежка", "гости", "внецеркви", "вечерхвалы"]
+# =========================
+# 3. Функции для работы с ботом
+# =========================
 
+# Обработка фото
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     user_id = message.from_user.id
-
-    if user_id not in user_data:
-        user_data[user_id] = {"photos": []}
-
-    user_data[user_id]["photos"].append(message.photo[-1].file_id)
-
+    # Сохраняем все фото в сообщении
+    user_data[user_id] = {
+        "photos": message.photo
+    }
     bot.send_message(user_id, "Введите название мероприятия:")
     bot.register_next_step_handler(message, ask_date)
 
-
+# Ввод названия мероприятия
 def ask_date(message):
     user_id = message.from_user.id
     user_data[user_id]["event_name"] = message.text
-
-    bot.send_message(user_id, "Введите дату (например 2026-03-19):")
+    bot.send_message(user_id, "Введите дату мероприятия (например: 19.03.2026):")
     bot.register_next_step_handler(message, ask_tags)
 
-
+# Ввод тегов
 def ask_tags(message):
     user_id = message.from_user.id
     user_data[user_id]["date"] = message.text
+    # Отправляем инструкцию с тегами
+    bot.send_message(user_id, "Выберите один или несколько тегов через запятую:\n\n"
+                              "- Молодежка — фото с собраний молодежной группы\n"
+                              "- Вне церкви — мероприятия вне церкви\n"
+                              "- Гости — приглашенные или посетители\n"
+                              "- Вечер хвалы — музыкальные или молитвенные вечера")
+    bot.register_next_step_handler(message, send_photos)
 
-    markup = telebot.types.InlineKeyboardMarkup()
-    for tag in TAGS:
-        markup.add(telebot.types.InlineKeyboardButton(tag, callback_data=tag))
-    markup.add(telebot.types.InlineKeyboardButton("Готово", callback_data="done"))
+# Отправка фото в канал
+def send_photos(message):
+    user_id = message.from_user.id
+    tags = [tag.strip() for tag in message.text.split(",")]
+    user_data[user_id]["tags"] = tags
+    
+    # Формируем подпись для фото
+    caption = f"{user_data[user_id]['event_name']} | {user_data[user_id]['date']} | Теги: {', '.join(tags)}"
+    
+    # Отправляем каждое фото в канал
+    for photo in user_data[user_id]["photos"]:
+        bot.send_photo(CHANNEL_ID, photo.file_id, caption=caption)
+    
+    bot.send_message(user_id, "Фото успешно загружены в канал ✅")
+    # Очищаем данные пользователя
+    user_data.pop(user_id)
 
-    user_data[user_id]["tags"] = []
-
-    bot.send_message(user_id, "Выбери теги:", reply_markup=markup)
-
-
-@bot.callback_query_handler(func=lambda call: True)
-def callback(call):
-    user_id = call.from_user.id
-
-    if call.data == "done":
-        send_to_channel(call.message)
-        return
-
-    user_data[user_id]["tags"].append(call.data)
-    bot.answer_callback_query(call.id, f"Добавлен #{call.data}")
-
-
-def send_to_channel(message):
-    user_id = message.chat.id
-    data = user_data[user_id]
-
-    tags = " ".join([f"#{t}" for t in data["tags"]])
-
-    caption = f"📅 {data['date']}\n🎯 {data['event_name']}\n{tags}"
-
-    # отправляем все фото в канал
-    for file_id in data["photos"]:
-        bot.send_photo(CHANNEL_ID, file_id, caption=caption)
-
-    bot.send_message(user_id, "✅ Фото отправлены в архив!")
-
-    user_data[user_id] = {"photos": []}
-
-
-print("Бот запущен")
+# =========================
+# 4. Запуск бота
+# =========================
 bot.polling()
