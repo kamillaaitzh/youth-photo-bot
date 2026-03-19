@@ -2,51 +2,75 @@ import os
 import telebot
 from telebot import types
 
+# =========================
+# Настройки Telegram
+# =========================
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
 
 bot = telebot.TeleBot(TOKEN)
 
+# =========================
+# Данные пользователей
+# =========================
 user_data = {}
 
-# Кнопки для тегов
+# Теги для кнопок
 TAGS = ["Молодежка", "Вне церкви", "Гости", "Вечер хвалы"]
 
-# ----------------- обработка фото -----------------
+# =========================
+# 1. Обработка фото
+# =========================
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     user_id = message.from_user.id
-    # сохраняем только самое большое фото из каждого массива
-    user_data[user_id] = {
-        "photos": [message.photo[-1]]  # берем самое большое фото
-    }
+
+    # Определяем альбом (media_group_id) или используем message_id
+    group_id = message.media_group_id or message.message_id
+
+    if user_id not in user_data:
+        user_data[user_id] = {"photo_groups": {}}
+
+    if group_id not in user_data[user_id]["photo_groups"]:
+        user_data[user_id]["photo_groups"][group_id] = []
+
+    # Сохраняем самое большое фото каждого объекта
+    user_data[user_id]["photo_groups"][group_id].append(message.photo[-1])
+
     bot.send_message(user_id, "Введите название мероприятия:")
     bot.register_next_step_handler(message, ask_date)
 
-# ----------------- название мероприятия -----------------
+# =========================
+# 2. Ввод даты
+# =========================
 def ask_date(message):
     user_id = message.from_user.id
     user_data[user_id]["event_name"] = message.text
     bot.send_message(user_id, "Введите дату мероприятия (например: 19.03.2026):")
     bot.register_next_step_handler(message, ask_tags)
 
-# ----------------- кнопки тегов -----------------
+# =========================
+# 3. Выбор тегов с кнопками
+# =========================
 def ask_tags(message):
     user_id = message.from_user.id
     user_data[user_id]["date"] = message.text
-    
+
     markup = types.InlineKeyboardMarkup(row_width=2)
     buttons = [types.InlineKeyboardButton(tag, callback_data=tag) for tag in TAGS]
-    markup.add(*buttons)
-    
+    finish_button = types.InlineKeyboardButton("Готово ✅", callback_data="finish")
+    markup.add(*buttons, finish_button)
+
     bot.send_message(user_id, "Выберите один или несколько тегов (нажмите кнопки):", reply_markup=markup)
 
-# ----------------- обработка выбора тегов -----------------
+# =========================
+# 4. Обработка нажатий кнопок
+# =========================
 @bot.callback_query_handler(func=lambda call: True)
 def callback_tags(call):
     user_id = call.from_user.id
 
-    # Проверяем, есть ли данные для этого пользователя
+    # Проверка, что есть данные для пользователя
     if user_id not in user_data:
         bot.answer_callback_query(call.id, "Сначала отправьте фото и заполните данные 🛑")
         return
@@ -57,7 +81,7 @@ def callback_tags(call):
         bot.answer_callback_query(call.id, "Фото загружены ✅")
         return
 
-    # Добавляем тег
+    # Добавляем выбранный тег
     tag = call.data
     if "tags" not in user_data[user_id]:
         user_data[user_id]["tags"] = []
@@ -79,13 +103,21 @@ def callback_tags(call):
 
     bot.answer_callback_query(call.id)
 
-# ----------------- отправка фото в канал -----------------
+# =========================
+# 5. Отправка фото в канал
+# =========================
 def send_photos(user_id):
-    caption = f"{user_data[user_id]['event_name']} | {user_data[user_id]['date']} | Теги: {', '.join(user_data[user_id]['tags'])}"
-    for photo in user_data[user_id]["photos"]:
-        bot.send_photo(CHANNEL_ID, photo.file_id, caption=caption)
+    caption = f"{user_data[user_id]['event_name']} | {user_data[user_id]['date']} | Теги: {', '.join(user_data[user_id].get('tags', []))}"
+
+    # Отправляем все группы фото
+    for group_id, photos in user_data[user_id]["photo_groups"].items():
+        for photo in photos:
+            bot.send_photo(CHANNEL_ID, photo.file_id, caption=caption)
+
     bot.send_message(user_id, "Фото успешно загружены в канал ✅")
     user_data.pop(user_id)
 
-# ----------------- запуск -----------------
+# =========================
+# 6. Запуск бота
+# =========================
 bot.polling()
