@@ -1,6 +1,7 @@
 import os
-TOKEN = os.getenv("8741499484:AAHfMRmDg9D3a5F-RKjiBw_UGMKW1NQLZ6U")
-CHANNEL_ID = int(os.getenv("-1003860495120"))
+
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
 
 
 bot = telebot.TeleBot(TOKEN)
