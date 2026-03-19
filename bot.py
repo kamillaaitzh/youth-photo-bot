@@ -45,22 +45,39 @@ def ask_tags(message):
 @bot.callback_query_handler(func=lambda call: True)
 def callback_tags(call):
     user_id = call.from_user.id
+
+    # Проверяем, есть ли данные для этого пользователя
+    if user_id not in user_data:
+        bot.answer_callback_query(call.id, "Сначала отправьте фото и заполните данные 🛑")
+        return
+
+    # Если нажата кнопка "Готово"
+    if call.data == "finish":
+        send_photos(user_id)
+        bot.answer_callback_query(call.id, "Фото загружены ✅")
+        return
+
+    # Добавляем тег
     tag = call.data
     if "tags" not in user_data[user_id]:
         user_data[user_id]["tags"] = []
     if tag not in user_data[user_id]["tags"]:
         user_data[user_id]["tags"].append(tag)
-    
-    # Кнопка для завершения выбора
-    markup = types.InlineKeyboardMarkup()
+
+    # Обновляем сообщение с выбранными тегами
+    markup = types.InlineKeyboardMarkup(row_width=2)
+    buttons = [types.InlineKeyboardButton(t, callback_data=t) for t in TAGS]
     finish_button = types.InlineKeyboardButton("Готово ✅", callback_data="finish")
-    markup.add(finish_button)
-    
-    bot.edit_message_text(chat_id=user_id, message_id=call.message.message_id,
-                          text=f"Выбранные теги: {', '.join(user_data[user_id]['tags'])}", reply_markup=markup)
-    
-    if call.data == "finish":
-        send_photos(user_id)
+    markup.add(*buttons, finish_button)
+
+    bot.edit_message_text(
+        chat_id=user_id,
+        message_id=call.message.message_id,
+        text=f"Выбранные теги: {', '.join(user_data[user_id]['tags'])}",
+        reply_markup=markup
+    )
+
+    bot.answer_callback_query(call.id)
 
 # ----------------- отправка фото в канал -----------------
 def send_photos(user_id):
